@@ -32,6 +32,7 @@ export const streamsApi = {
   update: (id, data) => api.put(`/streams/${id}`, data),
   delete: (id) => api.delete(`/streams/${id}`),
   toggle: (id) => api.post(`/streams/${id}/toggle`),
+  execute: (id, triggerData) => api.post(`/execute/stream/${id}`, { trigger_data: triggerData }),
 };
 
 export const sentryApi = {
@@ -39,6 +40,7 @@ export const sentryApi = {
   create: (data) => api.post('/sentry', data),
   delete: (id) => api.delete(`/sentry/${id}`),
   check: (id) => api.post(`/sentry/${id}/check`),
+  smartScrape: (data) => api.post('/execute/smart-scrape', data),
 };
 
 export const pulseApi = {
@@ -49,6 +51,7 @@ export const pulseApi = {
   getCampaigns: () => api.get('/pulse/campaigns'),
   createCampaign: (data) => api.post('/pulse/campaigns', data),
   sendCampaign: (id) => api.post(`/pulse/campaigns/${id}/send`),
+  sendEmail: (data) => api.post('/execute/send-email', data),
 };
 
 export const hiveApi = {
@@ -61,12 +64,25 @@ export const hiveApi = {
 };
 
 export const aiApi = {
-  process: (data) => api.post('/ai/process', data),
+  process: (data) => api.post('/execute/ai-process', data),
   analyzeWebpage: (url) => api.post(`/ai/analyze-webpage?url=${encodeURIComponent(url)}`),
+};
+
+export const executeApi = {
+  executeStream: (streamId, triggerData) => api.post(`/execute/stream/${streamId}`, triggerData),
+  smartScrape: (data) => api.post('/execute/smart-scrape', data),
+  aiProcess: (data) => api.post('/execute/ai-process', data),
+  sendEmail: (data) => api.post('/execute/send-email', data),
+  getExecutionLogs: (executionId) => api.get(`/execute/logs/${executionId}`),
+  getActivityLogs: (limit = 20) => api.get(`/execute/activity?limit=${limit}`),
 };
 
 export const statsApi = {
   getDashboard: () => api.get('/stats'),
+};
+
+export const pingApi = {
+  ping: () => api.get('/ping'),
 };
 
 export default api;

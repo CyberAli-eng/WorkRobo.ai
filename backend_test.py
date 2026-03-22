@@ -84,7 +84,7 @@ class WorkRoboAPITester:
         print("="*50)
         
         # Test signup
-        test_email = f"test_{datetime.now().strftime('%H%M%S')}@example.com"
+        test_email = f"test.user.{datetime.now().strftime('%H%M%S')}@workrobo.ai"
         signup_data = {
             "email": test_email,
             "password": "TestPass123!",
@@ -273,6 +273,82 @@ class WorkRoboAPITester:
         
         self.run_test("AI Process", "POST", "api/ai/process", 200, ai_data)
 
+    def test_ping_endpoint(self):
+        """Test new ping endpoint for engine status"""
+        print("\n" + "="*50)
+        print("TESTING PING ENDPOINT")
+        print("="*50)
+        
+        # Test ping endpoint (public, no auth required)
+        success, response = self.run_test("Ping Engine Status", "GET", "api/ping", 200)
+        
+        if success:
+            # Verify response structure
+            expected_fields = ['status', 'timestamp', 'engine', 'capabilities']
+            for field in expected_fields:
+                if field in response:
+                    print(f"   ✅ Found expected field: {field}")
+                else:
+                    print(f"   ❌ Missing expected field: {field}")
+
+    def test_execution_endpoints(self):
+        """Test new execution engine endpoints"""
+        if not self.token:
+            print("\n⚠️  Skipping Execution tests - No auth token")
+            return
+            
+        print("\n" + "="*50)
+        print("TESTING EXECUTION ENDPOINTS")
+        print("="*50)
+        
+        # Test smart scrape
+        scrape_data = {
+            "url": "https://example.com",
+            "selector": "h1"
+        }
+        self.run_test("Smart Scrape", "POST", "api/execute/smart-scrape", 200, scrape_data)
+        
+        # Test AI process
+        ai_process_data = {
+            "prompt": "Analyze this text and provide a summary",
+            "context": "This is test context for AI processing"
+        }
+        self.run_test("AI Process Execution", "POST", "api/execute/ai-process", 200, ai_process_data)
+        
+        # Test send email
+        email_data = {
+            "to": "test@example.com",
+            "subject": "Test Email from WorkRobo",
+            "html_content": "<p>This is a test email from the execution engine.</p>"
+        }
+        self.run_test("Send Email", "POST", "api/execute/send-email", 200, email_data)
+        
+        # Test get activity logs
+        self.run_test("Get Activity Logs", "GET", "api/execute/activity", 200)
+
+    def test_websocket_endpoint(self):
+        """Test WebSocket endpoint availability"""
+        print("\n" + "="*50)
+        print("TESTING WEBSOCKET ENDPOINT")
+        print("="*50)
+        
+        # We can't easily test WebSocket with requests, but we can check if the endpoint exists
+        # by trying to connect and seeing if we get the right error
+        import websocket
+        
+        try:
+            ws_url = self.base_url.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws'
+            print(f"   Attempting WebSocket connection to: {ws_url}")
+            
+            # Try to create a WebSocket connection
+            ws = websocket.create_connection(ws_url, timeout=5)
+            print("   ✅ WebSocket connection successful")
+            ws.close()
+            
+        except Exception as e:
+            print(f"   ⚠️  WebSocket connection failed: {str(e)}")
+            # This might be expected if authentication is required
+
     def test_stats_endpoint(self):
         """Test dashboard stats endpoint"""
         if not self.token:
@@ -293,12 +369,15 @@ def main():
     
     # Run all tests
     tester.test_health_endpoints()
+    tester.test_ping_endpoint()  # New Phase 2 test
     tester.test_auth_endpoints()
     tester.test_streams_endpoints()
     tester.test_sentry_endpoints()
     tester.test_pulse_endpoints()
     tester.test_hive_endpoints()
     tester.test_ai_endpoints()
+    tester.test_execution_endpoints()  # New Phase 2 test
+    tester.test_websocket_endpoint()  # New Phase 2 test
     tester.test_stats_endpoint()
     
     # Print final results
