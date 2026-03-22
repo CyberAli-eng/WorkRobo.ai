@@ -11,16 +11,17 @@ Build an "All-in-One Autonomous Automation & Engagement Engine" SaaS platform ca
 
 ### Tech Stack
 - **Frontend**: React with Framer Motion animations, Tailwind CSS
-- **Backend**: FastAPI (Python)
+- **Backend**: FastAPI (Python) v2.0.0
 - **Database**: MongoDB (primary), Supabase for auth
 - **Auth**: Supabase Auth (Google OAuth + Email/Password)
 - **Email**: Resend API
-- **AI**: Gemini 3 Flash
+- **AI**: Gemini 3 Flash (gemini-2.0-flash model)
+- **Scraping**: Playwright with stealth mode
 
 ### Modules
 1. **The Synapse** - Visual workflow builder using ReactFlow
-2. **The Sentry** - Web monitoring and change detection
-3. **The Pulse** - Email campaigns and contact management
+2. **The Sentry** - Web monitoring and change detection with Playwright
+3. **The Pulse** - Email campaigns and contact management via Resend
 4. **The Hive** - Autonomous WorkRobo agents
 
 ### Custom Terminology
@@ -38,88 +39,71 @@ Build an "All-in-One Autonomous Automation & Engagement Engine" SaaS platform ca
 - Deep dark purple/black theme (#0A0A0A base)
 - Glassmorphism UI with purple glow accents
 - Authentication via Supabase (Google + Email)
-- Real-time workflow updates
+- Real-time workflow updates via WebSocket
 - High-scale email capabilities
 
-## What's Been Implemented (Jan 2026)
+## What's Been Implemented
 
-### Landing Page ✅
-- Animated hero with CSS-based 3D robo-core visualization
-- Feature cards for all four modules
-- Statistics section
-- CTA sections with smooth animations
-- Responsive navigation
+### Phase 1 (Jan 2026) ✅
+- Landing Page with animated CSS 3D hero
+- Authentication (Supabase)
+- Dashboard with stats
+- Basic CRUD for all modules
+- UI/UX foundation
 
-### Authentication ✅
-- Login/Signup forms with email/password
-- Google OAuth integration via Supabase
-- Protected route guards
-- Session management
+### Phase 2 (Jan 2026) ✅
+- **Execution Engine v2.0.0**
+  - StealthScraper using Playwright with bot detection bypass
+  - WorkflowExecutor for parsing ReactFlow JSON
+  - Gemini AI integration for data analysis
+  - Real Resend email integration
+  - WebSocket manager for real-time updates
 
-### Dashboard ✅
-- Stats overview cards
-- Quick action buttons
-- Activity feed placeholder
-- Dark glassmorphism theme
+- **New API Endpoints**
+  - `/api/ping` - Engine health check
+  - `/api/execute/smart-scrape` - Stealth web scraping
+  - `/api/execute/ai-process` - Gemini AI processing
+  - `/api/execute/send-email` - Send emails with templates
+  - `/api/execute/stream/{id}` - Execute workflow
+  - `/ws` - WebSocket for real-time updates
 
-### Synapse (Visual Builder) ✅
-- ReactFlow-based canvas
-- Custom Neural Link node types
-- Node palette with 6 node types
-- Save/load workflow functionality
-- Connection handling
-
-### Sentry (Web Monitoring) ✅
-- Add monitoring targets
-- Manual check trigger
-- Change detection
-- Delete targets
-
-### Pulse (Messaging) ✅
-- Contact list management
-- Add contacts to lists
-- Campaign creation
-- Send campaign functionality
-
-### Hive (WorkRobos) ✅
-- Create WorkRobo agents
-- Trigger type selection
-- Activate/deactivate agents
-- Delete agents
-
-### Settings ✅
-- Profile section
-- Preferences toggles
-- API key management placeholder
+- **Enhanced Builder Page**
+  - 8 Node types (Trigger, Sentry, AI, Email, Delay, Code, Database, Condition)
+  - Node configuration dialogs
+  - Execute button with real-time status
+  - WebSocket integration for live node updates
+  - Execution logs sidebar
 
 ## Prioritized Backlog
 
-### P0 (Critical)
+### P0 (Critical) ✅
 - ~~Core navigation and routing~~
 - ~~Authentication flow~~
 - ~~Basic CRUD for all modules~~
+- ~~Execution engine~~
+- ~~Real-time updates~~
 
 ### P1 (High Priority)
-- Real-time workflow execution
-- Actual web scraping with Playwright
-- Email template builder
-- Scheduled task execution
+- Scheduled task execution (cron-based)
+- Workflow templates marketplace
+- Advanced scraping options (pagination, login)
+- Email template visual builder
 
 ### P2 (Medium Priority)
-- Three.js 3D visualization (fix compatibility)
+- Three.js 3D visualization
 - Workflow versioning
-- Contact import/export
-- Analytics dashboard
+- Contact import/export CSV
+- Analytics dashboard with charts
 
 ### P3 (Nice to Have)
-- Webhook endpoints for WorkRobos
+- Public webhook endpoints
 - Multi-user workspaces
-- Custom node creation
-- API rate limiting
+- Custom node SDK
+- API rate limiting dashboard
 
 ## Next Tasks
 1. Enable Google OAuth in Supabase dashboard
-2. Add real-time workflow execution
-3. Implement actual web scraping
-4. Build email template editor
-5. Add scheduled tasks with Celery/Redis
+2. Add scheduled execution (cron jobs)
+3. Create workflow template gallery
+4. Build visual email template editor
+5. Add workflow versioning/history
