@@ -1,0 +1,138 @@
+{
+  "app_name": "WorkRobo.ai",
+  "theme": "dark_mode_primary",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "mono_font": "JetBrains Mono",
+    "scale": {
+      "h1": "text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter",
+      "h2": "text-4xl md:text-5xl font-bold tracking-tight",
+      "h3": "text-2xl md:text-3xl font-semibold tracking-tight",
+      "body": "text-base leading-relaxed text-zinc-400",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-zinc-500",
+      "code": "font-mono text-sm text-purple-400"
+    }
+  },
+  "colors": {
+    "background": {
+      "app": "#0A0A0A",
+      "card": "#121212",
+      "glass": "rgba(10, 10, 10, 0.65)"
+    },
+    "primary": {
+      "base": "#8B5CF6",
+      "hover": "#A855F7",
+      "glow": "rgba(139, 92, 246, 0.4)"
+    },
+    "accent": {
+      "cyan": "#06B6D4",
+      "magenta": "#D946EF"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "tertiary": "#71717A"
+    },
+    "border": {
+      "subtle": "rgba(255, 255, 255, 0.08)",
+      "active": "rgba(139, 92, 246, 0.5)"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "bg-[#0A0A0A]/60 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
+    "neon_glow": "shadow-[0_0_30px_-5px_rgba(139,92,246,0.3)]",
+    "grid_background": "bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px]",
+    "tracing_beam": "mask-image dynamic gradient border for high-conversion cards"
+  },
+  "layouts": {
+    "marketing": {
+      "type": "Tetris Grid",
+      "description": "Asymmetrical, visually tense. grid-cols-1 md:grid-cols-12 gap-8.",
+      "hero": "col-span-full min-h-[90vh] flex flex-col items-center justify-center relative",
+      "features": "Bento style with varied spans: col-span-4 row-span-2, col-span-8 row-span-1"
+    },
+    "dashboard": {
+      "type": "High Density Grid",
+      "description": "grid-cols-1 md:grid-cols-12 gap-6 p-6.",
+      "sidebar": "col-span-2 border-r border-white/10 h-screen sticky top-0",
+      "main_content": "col-span-10"
+    }
+  },
+  "components": {
+    "cards": {
+      "base": "rounded-2xl bg-[#0A0A0A]/60 backdrop-blur-xl border border-white/10 p-6 md:p-8 overflow-hidden relative",
+      "hover": "hover:border-purple-500/50 hover:bg-white/5 transition-colors duration-300",
+      "glow_effect": "absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 hover:opacity-100 transition-opacity"
+    },
+    "buttons": {
+      "primary": "rounded-full bg-purple-600 text-white font-medium px-8 py-4 hover:bg-purple-500 transition-colors shadow-[0_0_20px_rgba(139,92,246,0.4)] focus:ring-2 focus:ring-purple-400 focus:outline-none",
+      "secondary": "rounded-full bg-white/5 border border-white/10 text-white px-8 py-4 hover:bg-white/10 transition-colors",
+      "icon": "rounded-full p-2 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+    },
+    "inputs": {
+      "base": "bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors outline-none"
+    }
+  },
+  "motion": {
+    "page_transitions": "opacity: 0 to 1, y: 20 to 0 using Framer Motion",
+    "hover_states": "scale: 1.02, transition: { type: 'spring', stiffness: 400, damping: 25 }",
+    "stagger_children": "transition: { staggerChildren: 0.1 }"
+  },
+  "accessibility": {
+    "contrast": "Ensure minimum 4.5:1 ratio for standard text against #0A0A0A or card backgrounds.",
+    "focus": "All interactive elements must have focus:ring-2 focus:ring-purple-500 focus:outline-none",
+    "motion": "Respect prefers-reduced-motion media query",
+    "test_ids": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
+  "3d_libraries": {
+    "library": "@react-three/fiber and @react-three/drei",
+    "usage": "Use for the 'Robo-Core' on the landing page. A glowing, rotating 3D node network/sphere to represent 'The Hive' and 'Synapse'.",
+    "implementation": "Wrap in <Suspense fallback={<Loader />}>. Ensure transparent background <Canvas gl={{ alpha: true }}>."
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1647356191320-d7a1f80ca777?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5ldXJhbCUyMG5ldHdvcmslMjBkYXJrfGVufDB8fHx8MTc3NDE1NzU2MHww&ixlib=rb-4.1.0&q=85",
+        "category": "landing_page_background",
+        "description": "Purple and blue abstract neural network pattern on a black background. Use as a low-opacity overlay or hero background."
+      },
+      {
+        "url": "https://images.pexels.com/photos/6019019/pexels-photo-6019019.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "hive_agents_marketing",
+        "description": "Futuristic humanoid robot with glowing elements. Use for 'The Hive' module marketing section."
+      }
+    ],
+    "icons": {
+      "library": "lucide-react",
+      "weight": "Use strokeWidth={1.5} for a premium, delicate look."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Install required dependencies: framer-motion, @react-three/fiber, @react-three/drei, three, lucide-react, reactflow.",
+    "Create the Landing Page (marketing) with an immersive Hero section featuring the 3D 'Robo-Core' using R3F.",
+    "Implement 'The Synapse' using reactflow. Nodes must have the glassmorphism aesthetic (bg-[#0A0A0A]/60, border-white/10).",
+    "Build Dashboards (/sentry, /pulse, /hive) using the High Density Grid. Do NOT use standard white cards; use dark glassmorphism.",
+    "Strictly follow the color palette. DO NOT use #7351B7 or #1B93A4. Use #8B5CF6 for the primary purple glow.",
+    "Do not use transparent backgrounds blindly; headers over content must use heavy backdrop-blur and border-b.",
+    "All buttons, inputs, links, and actionable items MUST have a data-testid attribute.",
+    "Ensure all components use generic div elements for containers in the marketing pages to avoid Shadcn limitations, while utilizing Shadcn components heavily styled for internal dashboards."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Avoid generic, 'on distribution' outputs. Make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition (e.g., transition: all). Always add transitions for specific properties.",
+    "You MUST NOT center align the app container in global CSS.",
+    "Always use modern button styles (pill-shaped or sharp) with interaction animations.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯📚 for icons. Use lucide-react.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Add subtle grain textures, noise overlays, and selection states.",
+    "MUST use data-testid on all interactive and key informational elements.",
+    "Components MUST use named exports, Pages MUST use default exports.",
+    "Use sonner for toasts notifications."
+  ]
+}
