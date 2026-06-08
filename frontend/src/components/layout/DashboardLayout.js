@@ -9,7 +9,9 @@ import {
   Bot, 
   Settings,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  ShoppingBag,
+  PenTool
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -18,7 +20,9 @@ const navItems = [
   { path: '/builder', icon: Network, label: 'Synapse', subtitle: 'Visual Builder' },
   { path: '/sentry', icon: Eye, label: 'Sentry', subtitle: 'Web Monitor' },
   { path: '/pulse', icon: Mail, label: 'Pulse', subtitle: 'Messaging' },
+  { path: '/pulse-designer', icon: PenTool, label: 'Designer', subtitle: 'Pulse Templates' },
   { path: '/hive', icon: Bot, label: 'Hive', subtitle: 'WorkRobos' },
+  { path: '/marketplace', icon: ShoppingBag, label: 'Marketplace', subtitle: 'Robo-Gallery' },
 ];
 
 export const Sidebar = () => {

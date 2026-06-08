@@ -167,6 +167,7 @@ class WorkflowExecutor:
             'code': self._handle_code_node,
             'database': self._handle_database_node,
             'condition': self._handle_condition_node,
+            'http': self._handle_http_node,
         }
         
     async def execute_stream(
@@ -222,22 +223,27 @@ class WorkflowExecutor:
         
         return ctx
         
-    def _build_adjacency_map(self, edges: List[Dict]) -> Dict[str, List[str]]:
-        """Build a map of node_id -> [connected_node_ids]"""
-        adjacency = {}
+    def _build_adjacency_map(self, edges: List[Dict]) -> Dict[str, List[Dict[str, Any]]]:
+        """Build a map of node_id -> [{target: node_id, handle: sourceHandle}]"""
+        adjacency: Dict[str, List[Dict[str, Any]]] = {}
         for edge in edges:
-            source = edge.get('source')
-            target = edge.get('target')
+            source = str(edge.get('source', ''))
+            target = str(edge.get('target', ''))
+            handle = edge.get('sourceHandle')
+            
+            if not source:
+                continue
+                
             if source not in adjacency:
                 adjacency[source] = []
-            adjacency[source].append(target)
+            adjacency[source].append({'target': target, 'handle': handle})
         return adjacency
         
     async def _execute_node_chain(
         self,
         node: Dict[str, Any],
         all_nodes: List[Dict],
-        adjacency: Dict[str, List[str]],
+        adjacency: Dict[str, List[Dict[str, Any]]],
         ctx: ExecutionContext
     ):
         """Execute a node and continue to connected nodes"""
@@ -270,13 +276,29 @@ class WorkflowExecutor:
             # Continue execution despite errors (can be configured)
             
         # Execute connected nodes
-        connected_ids = adjacency.get(node_id, [])
+        connected_edges = adjacency.get(node_id, [])
         nodes_map = {n['id']: n for n in all_nodes}
         
-        for next_id in connected_ids:
-            next_node = nodes_map.get(next_id)
-            if next_node:
-                await self._execute_node_chain(next_node, all_nodes, adjacency, ctx)
+        for edge in connected_edges:
+            next_id = edge['target']
+            handle = edge['handle']
+            
+            # Condition logic routing
+            if node_type == 'condition':
+                condition_result = result.get('result')  # True or False
+                
+                # Check mapping of the explicit string output handle
+                if (handle == 'true' and condition_result is True) or \
+                   (handle == 'false' and condition_result is False) or \
+                   (handle is None and condition_result is True):
+                    next_node = nodes_map.get(next_id)
+                    if next_node:
+                        await self._execute_node_chain(next_node, all_nodes, adjacency, ctx)
+            else:
+                # Normal sequential execution
+                next_node = nodes_map.get(next_id)
+                if next_node:
+                    await self._execute_node_chain(next_node, all_nodes, adjacency, ctx)
                 
     async def _notify_status(
         self,
@@ -284,7 +306,7 @@ class WorkflowExecutor:
         node_id: str,
         status: NodeStatus,
         result: Any = None,
-        error: str = None
+        error: Optional[str] = None
     ):
         """Send real-time status update"""
         if self.status_callback:
@@ -324,6 +346,8 @@ class WorkflowExecutor:
         
     async def _handle_sentry_node(self, node: Dict, ctx: ExecutionContext) -> Dict:
         """Handle Sentry/scraper node - web scraping with change detection"""
+        from tenacity import retry, stop_after_attempt, wait_exponential
+        
         config = node.get('data', {}).get('config', {})
         url = ctx.interpolate_template(config.get('url', ''))
         selector = config.get('selector')
@@ -331,15 +355,28 @@ class WorkflowExecutor:
         if not url:
             raise ValueError("Sentry node requires a URL")
             
-        ctx.log(f"Scraping URL: {url}")
+        ctx.log(f"Scraping URL: {url} (with auto-retries)")
         
         # Get previous hash for change detection
         target = await self.db.sentry_targets.find_one({'url': url, 'user_id': ctx.user_id})
         last_hash = target.get('last_content_hash') if target else None
         
-        # Perform scrape
-        change_detected, result = await self.scraper.check_for_changes(url, last_hash, selector)
-        
+        @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True)
+        async def _do_scrape():
+            ctx.log(f"Attempting scrape for {url}...")
+            # Perform scrape
+            change_detected, result = await self.scraper.check_for_changes(url, last_hash, selector)
+            if not result['success']:
+                raise Exception(f"Scrape failed: {result.get('error')}")
+            return change_detected, result
+
+        try:
+            change_detected, result = await _do_scrape()
+        except Exception as e:
+            ctx.log(f"Sentry Scrape permanently failed after 3 retries: {e}", "error")
+            # Send 'Robo Failure' alert format as per requirements
+            raise Exception(f"Robo Failure: {e}")
+            
         if result['success']:
             # Update stored hash
             await self.db.sentry_targets.update_one(
@@ -399,6 +436,13 @@ class WorkflowExecutor:
                 json_match = re.search(r'\{[\s\S]*\}', response_text)
                 if json_match:
                     parsed = json.loads(json_match.group())
+                    
+                    # Automagically inject parsed keys directly into execution context variables
+                    # for subsequent condition/email nodes to easily reference
+                    if isinstance(parsed, dict):
+                        for k, v in parsed.items():
+                            ctx.set_variable(k, v)
+                            
                     return {
                         'success': True,
                         'response': response_text,
@@ -535,8 +579,76 @@ class WorkflowExecutor:
             result = eval(condition, {'__builtins__': {}}, ctx.variables)
             ctx.set_variable('condition_result', result)
             return {'condition': condition, 'result': bool(result)}
+        except NameError as e:
+            available_vars = ", ".join(ctx.variables.keys()) or "None"
+            error_msg = f"Variable not found: {e}. Available variables: {available_vars}. Hint: Make sure previous nodes (like AI) succeeded and generated this variable."
+            ctx.log(error_msg, "error")
+            return {'condition': condition, 'result': False, 'error': error_msg}
         except Exception as e:
             return {'condition': condition, 'result': False, 'error': str(e)}
+
+    async def _handle_http_node(self, node: Dict, ctx: ExecutionContext) -> Dict:
+        """Handle HTTP Request node - make external API calls"""
+        config = node.get('data', {}).get('config', {})
+        method = config.get('method', 'GET').upper()
+        url = config.get('url', '')
+        headers_str = config.get('headers', '{}')
+        body_str = config.get('body', '{}')
+        
+        if not url:
+            return {'success': False, 'error': 'No URL provided'}
+            
+        ctx.log(f"HTTP Request: {method} {url}")
+        
+        try:
+            import httpx
+            # Interpolate variables in URL, headers, and body
+            url = ctx.interpolate_template(url)
+            headers_str = ctx.interpolate_template(headers_str)
+            body_str = ctx.interpolate_template(body_str)
+            
+            headers = json.loads(headers_str) if headers_str else {}
+            body = json.loads(body_str) if body_str else {}
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                if method == 'GET':
+                    response = await client.get(url, headers=headers)
+                elif method == 'POST':
+                    response = await client.post(url, headers=headers, json=body)
+                elif method == 'PUT':
+                    response = await client.put(url, headers=headers, json=body)
+                elif method == 'DELETE':
+                    response = await client.delete(url, headers=headers)
+                else:
+                    return {'success': False, 'error': f'Unsupported method: {method}'}
+                
+                try:
+                    data = response.json()
+                except:
+                    data = response.text
+                    
+                # Update context variables with response data
+                if isinstance(data, dict):
+                    for k, v in data.items():
+                        # Avoid overwriting reserved keys or being too messy
+                        if k not in ['trigger_data', 'http_status']:
+                            ctx.set_variable(k, v)
+                    ctx.set_variable('http_data', data)
+                elif isinstance(data, list):
+                    ctx.set_variable('http_data', data)
+                else:
+                    ctx.set_variable('http_data', data)
+                    
+                ctx.set_variable('http_status', response.status_code)
+                
+                return {
+                    'success': response.status_code < 400,
+                    'status': response.status_code,
+                    'data': data
+                }
+        except Exception as e:
+            ctx.log(f"HTTP Request failed: {str(e)}", "error")
+            return {'success': False, 'error': str(e)}
             
     async def _handle_unknown_node(self, node: Dict, ctx: ExecutionContext) -> Dict:
         """Handle unknown node types"""

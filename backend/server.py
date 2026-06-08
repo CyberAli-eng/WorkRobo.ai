@@ -2,7 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, WebSocke
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from mongomock_motor import AsyncMongoMockClient
 import os
 import logging
 from pathlib import Path
@@ -12,8 +12,13 @@ import uuid
 from datetime import datetime, timezone
 import httpx
 import asyncio
+import sys
 import resend
 import google.generativeai as genai
+
+# Fix for Playwright/Subprocess on Windows
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Import our custom modules
 from scraper import StealthScraper, get_scraper, cleanup_scraper
@@ -23,10 +28,9 @@ from websocket_manager import ws_manager, ConnectionManager
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection (keeping for backward compatibility)
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Local DB is offline. Using in-memory JSON data structure for zero-friction Investor Testing.
+client = AsyncMongoMockClient()
+db = client[os.environ.get('DB_NAME', 'workrobo')]
 
 # Supabase configuration
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
@@ -411,6 +415,77 @@ async def toggle_stream(stream_id: str, user: Dict = Depends(get_current_user)):
     )
     return {"is_active": new_state}
 
+class ScheduleCreate(BaseModel):
+    cron_expression: str
+
+@streams_router.get("/{stream_id}/schedule")
+async def get_stream_schedule(stream_id: str, user: Dict = Depends(get_current_user)):
+    """Get the schedule configuration for a stream"""
+    schedule = await db.scheduler.find_one({"stream_id": stream_id, "user_id": user["id"]})
+    if not schedule:
+        return {"scheduled": False}
+    schedule.pop("_id", None)
+    return {"scheduled": True, "schedule": schedule}
+
+@streams_router.post("/{stream_id}/schedule")
+async def set_stream_schedule(stream_id: str, schedule_data: ScheduleCreate, user: Dict = Depends(get_current_user)):
+    """Create or update schedule configuration for a stream"""
+    stream = await db.streams.find_one({"id": stream_id, "user_id": user["id"]})
+    if not stream:
+        raise HTTPException(status_code=404, detail="Stream not found")
+        
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Check if schedule exists
+    existing = await db.scheduler.find_one({"stream_id": stream_id})
+    if existing:
+        result = await db.scheduler.find_one_and_update(
+            {"stream_id": stream_id},
+            {"$set": {
+                "cron_expression": schedule_data.cron_expression,
+                "is_active": True,
+                "updated_at": now
+            }},
+            return_document=True
+        )
+    else:
+        schedule_id = str(uuid.uuid4())
+        result = {
+            "id": schedule_id,
+            "stream_id": stream_id,
+            "cron_expression": schedule_data.cron_expression,
+            "is_active": True,
+            "user_id": user["id"],
+            "created_at": now,
+            "updated_at": now
+        }
+        await db.scheduler.insert_one(result)
+        
+    # Sync with APScheduler background tasks
+    try:
+        from scheduler import hive_clock
+        await hive_clock.sync_schedules()
+    except Exception as e:
+        logger.error(f"Failed to sync scheduler after update: {e}")
+    
+    if "_id" in result:
+        result.pop("_id", None)
+    return {"success": True, "schedule": result}
+
+@streams_router.delete("/{stream_id}/schedule")
+async def delete_stream_schedule(stream_id: str, user: Dict = Depends(get_current_user)):
+    """Delete a stream's schedule configuration"""
+    result = await db.scheduler.delete_one({"stream_id": stream_id, "user_id": user["id"]})
+    
+    # Sync with APScheduler background tasks
+    try:
+        from scheduler import hive_clock
+        await hive_clock.sync_schedules()
+    except Exception as e:
+        logger.error(f"Failed to sync scheduler after delete: {e}")
+    
+    return {"success": True, "message": "Schedule deleted successfully"}
+
 # ============== SENTRY (WEB MONITORING) ROUTES ==============
 
 @sentry_router.get("", response_model=List[SentryTargetResponse])
@@ -456,35 +531,39 @@ async def delete_sentry_target(target_id: str, user: Dict = Depends(get_current_
 
 @sentry_router.post("/{target_id}/check")
 async def check_sentry_target(target_id: str, user: Dict = Depends(get_current_user)):
-    """Manually trigger a check for a Sentry target"""
+    """Manually trigger a check for a Sentry target using StealthScraper"""
     target = await db.sentry_targets.find_one({"id": target_id, "user_id": user["id"]})
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
     
-    # Simple web scraping check
-    import hashlib
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(target["url"], timeout=30.0)
-            content_hash = hashlib.md5(response.text.encode()).hexdigest()
+        scraper = await get_scraper()
+        last_hash = target.get("last_content_hash")
+        
+        # Use StealthScraper with Playwright stealth mode to bypass bot-detection
+        change_detected, result = await scraper.check_for_changes(
+            target["url"], 
+            last_hash, 
+            target.get("selector")
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result.get("error", "Scrape failed"))
             
-            change_detected = False
-            if target.get("last_content_hash") and target["last_content_hash"] != content_hash:
-                change_detected = True
-            
-            await db.sentry_targets.update_one(
-                {"id": target_id},
-                {"$set": {
-                    "last_content_hash": content_hash,
-                    "last_checked": datetime.now(timezone.utc).isoformat(),
-                    "change_detected": change_detected
-                }}
-            )
-            
-            return {
-                "change_detected": change_detected,
-                "last_checked": datetime.now(timezone.utc).isoformat()
-            }
+        await db.sentry_targets.update_one(
+            {"id": target_id},
+            {"$set": {
+                "last_content_hash": result["content_hash"],
+                "last_checked": result["timestamp"],
+                "change_detected": change_detected
+            }}
+        )
+        
+        return {
+            "change_detected": change_detected,
+            "last_checked": result["timestamp"],
+            "success": True
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Check failed: {str(e)}")
 
@@ -795,6 +874,9 @@ class AIProcessRequest(BaseModel):
     context: Optional[str] = None
     scraped_data: Optional[str] = None
 
+class DesignRequest(BaseModel):
+    prompt: str
+
 class SendEmailRequest(BaseModel):
     to: str
     subject: str
@@ -969,6 +1051,79 @@ async def ai_process(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
 
+@execute_router.post("/ai-design")
+async def ai_design_workflow(
+    request: DesignRequest,
+    user: Dict = Depends(get_current_user)
+):
+    """
+    Generate a complete React Flow workflow (nodes and edges) from natural language.
+    """
+    try:
+        # Use gemini-1.5-flash-latest for broader compatibility
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        
+        system_prompt = """
+        You are a master automation engineer for 'Synapse', an n8n-style automation builder.
+        Your goal is to design a high-impact, professional workflow based on the user's request.
+        
+        Available Node Types and their Configs:
+        - trigger (webhook): The start of a workflow. No config needed.
+        - sentry (scraper): Scrapes a URL. Config: {"url": "...", "selector": "..."}
+        - ai (AI process): Analyzes data/writes icebreakers. Config: {"prompt": "..."}
+        - email (Pulse): Sends email. Config: {"to": "...", "subject": "...", "body": "..."}
+        - delay: Pauses execution. Config: {"seconds": 5}
+        - code: Executes Python. Config: {"code": "result = {'key': 'val'}"}
+        - database: MongoDB CRUD. Config: {"collection": "...", "operation": "find/insert/update/delete"}
+        - condition: If/Else branch. Config: {"condition": "price < 100"}
+        - http: External API calls (MUST use for Apollo, HubSpot, Slack, WhatsApp, Hunter.io, etc). 
+          Config: {"method": "GET/POST", "url": "...", "headers": "{}", "body": "{}"}
+        
+        Guidelines for complex requests (e.g. Lead Enrichment):
+        1. Start with a 'trigger' or 'sentry'.
+        2. Use 'http' nodes for external SaaS platforms (Apollo, Hunter, Hubspot, Slack).
+        3. Use 'ai' nodes for personalization, icebreakers, or summarization.
+        4. End with 'email', 'http' (Slack), or 'database'.
+        
+        Rules for Node Connections (Edges):
+        - AI nodes have two source handles: 'success' and 'failure'.
+        - Condition nodes have two source handles: 'true' and 'false'.
+        - All other nodes have a single default source handle (null).
+        
+        Rules for JSON Output:
+        1. Output ONLY a valid JSON object.
+        2. Format: {"nodes": [...], "edges": [...]}
+        3. Nodes: {"id": "n1", "type": "custom", "position": {"x": 0, "y": 0}, "data": {"label": "...", "nodeType": "...", "config": {...}}}
+        4. Edges: {"id": "e1-2", "source": "n1", "target": "n2", "sourceHandle": "..."}
+        5. Space nodes 300px apart horizontally.
+        
+        User Request: """
+        
+        full_prompt = system_prompt + request.prompt
+        
+        response = await asyncio.to_thread(
+            model.generate_content,
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
+        
+        content = response.text
+        import re
+        import json as json_module
+        
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if json_match:
+            design = json_module.loads(json_match.group())
+            return {"success": True, "design": design}
+        else:
+            return {"success": False, "error": "AI could not generate a valid design."}
+            
+    except Exception as e:
+        logger.error(f"Design AI error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
 @execute_router.post("/send-email")
 async def send_email(
     request: SendEmailRequest,
@@ -980,7 +1135,7 @@ async def send_email(
     html_content = request.html_content
     
     # Interpolate variables
-    if request.variables:
+    if request.variables is not None:
         for key, value in request.variables.items():
             html_content = html_content.replace(f"{{{{{key}}}}}", str(value))
     
@@ -1163,11 +1318,27 @@ async def startup_event():
         logger.info("Scraper initialized")
     except Exception as e:
         logger.warning(f"Scraper initialization deferred: {e}")
+        
+    # Start background scheduler
+    try:
+        from scheduler import hive_clock
+        hive_clock.start()
+        await hive_clock.sync_schedules()
+        logger.info("Hive-Clock Scheduler started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start Hive-Clock Scheduler: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
     """Cleanup on shutdown"""
     logger.info("WorkRobo.ai Engine shutting down...")
+    try:
+        from scheduler import hive_clock
+        hive_clock.stop()
+        logger.info("Hive-Clock Scheduler stopped")
+    except Exception as e:
+        logger.warning(f"Failed to cleanly stop scheduler: {e}")
+        
     await cleanup_scraper()
     client.close()
 

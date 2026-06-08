@@ -13,7 +13,7 @@ export const useWorkflowWebSocket = (workflowId) => {
   const reconnectTimeoutRef = useRef(null);
   
   const connect = useCallback(async () => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
     
     try {
       // Get user session for authentication
@@ -27,15 +27,18 @@ export const useWorkflowWebSocket = (workflowId) => {
       if (workflowId) params.append('workflow_id', workflowId);
       if (params.toString()) wsUrl += `?${params.toString()}`;
       
-      wsRef.current = new WebSocket(wsUrl);
+      console.log('Connecting to WebSocket:', wsUrl);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
       
-      wsRef.current.onopen = () => {
+      ws.onopen = () => {
+        if (wsRef.current !== ws) return;
         console.log('WebSocket connected');
         setIsConnected(true);
         
         // Subscribe to workflow if provided
-        if (workflowId) {
-          wsRef.current.send(JSON.stringify({
+        if (workflowId && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
             type: 'subscribe_workflow',
             workflow_id: workflowId
           }));

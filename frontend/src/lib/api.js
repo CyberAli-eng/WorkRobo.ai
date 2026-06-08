@@ -33,6 +33,9 @@ export const streamsApi = {
   delete: (id) => api.delete(`/streams/${id}`),
   toggle: (id) => api.post(`/streams/${id}/toggle`),
   execute: (id, triggerData) => api.post(`/execute/stream/${id}`, { trigger_data: triggerData }),
+  getSchedule: (id) => api.get(`/streams/${id}/schedule`),
+  setSchedule: (id, cronExpression) => api.post(`/streams/${id}/schedule`, { cron_expression: cronExpression }),
+  deleteSchedule: (id) => api.delete(`/streams/${id}/schedule`),
 };
 
 export const sentryApi = {

@@ -3,9 +3,11 @@ import sys
 import json
 from datetime import datetime
 
+import os
+
 class WorkRoboAPITester:
-    def __init__(self, base_url="https://ai-agents-hub-32.preview.emergentagent.com"):
-        self.base_url = base_url
+    def __init__(self, base_url=None):
+        self.base_url = base_url or os.environ.get("TEST_BASE_URL") or "http://localhost:8000"
         self.token = None
         self.tests_run = 0
         self.tests_passed = 0

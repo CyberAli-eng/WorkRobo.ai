@@ -13,6 +13,8 @@ import SentryPage from './pages/SentryPage';
 import PulsePage from './pages/PulsePage';
 import HivePage from './pages/HivePage';
 import SettingsPage from './pages/SettingsPage';
+import MarketplacePage from './pages/MarketplacePage';
+import PulseDesignerPage from './pages/PulseDesignerPage';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -121,6 +123,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/marketplace"
+        element={
+          <ProtectedRoute>
+            <MarketplacePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/pulse-designer"
+        element={
+          <ProtectedRoute>
+            <PulseDesignerPage />
           </ProtectedRoute>
         }
       />
