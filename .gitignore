@@ -31,6 +31,12 @@ dist/
 dist
 
 # Environment files (comprehensive coverage)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 
 *token.json*
 *credentials.json*
@@ -77,6 +83,7 @@ agenthub/agents/youtube/db
 .cache/
 
 # Mobile development
-android-sdk/ frontend/node_modules/.cache/default-development/1.pack
+android-sdk/
+frontend/node_modules/.cache/default-development/1.pack
 frontend/node_modules/.cache/default-development/1.pack
 frontend/node_modules/.cache/default-development/3.pack
